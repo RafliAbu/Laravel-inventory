@@ -8,90 +8,85 @@
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Foto</th>
+                            <th>Pemesan</th>
                             <th>Nama Barang</th>
                             <th>Kuantitas</th>
-                            <th>Satuan</th>
+                            <th>Tanggal</th>
                             <th>Status</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($orders as $i => $order)
+                        @forelse ($orders as $i => $order)
                             <tr>
                                 <td>{{ $i + $orders->firstItem() }}</td>
+                                <td>{{ $order->user->name ?? 'N/A' }}</td>
                                 <td>
-                                    <span class="avatar rounded avatar-md"
-                                        style="background-image: url({{ $order->image }})"></span>
+                                    <div class="d-flex align-items-center">
+                                        <span class="avatar rounded avatar-md me-3"
+                                            style="background-image: url({{ $order->image }})"></span>
+                                        <div>
+                                            {{-- Prioritaskan nama dari produk, fallback ke nama di order --}}
+                                            <div>{{ $order->product->name ?? $order->name }}</div>
+                                            <div class="text-muted">{{ $order->product->code ?? '' }}</div>
+                                        </div>
+                                    </div>
                                 </td>
-                                <td>{{ $order->name }}</td>
-                                <td>{{ $order->quantity }}</td>
-                                <td>{{ $order->unit }}</td>
-                                <td
-                                    class="{{ $order->status == App\Enums\OrderStatus::Pending ? 'text-danger' : 'text-success' }}">
-                                    {{ $order->status->value }}
+                                <td>{{ $order->quantity }} {{ $order->product->unit ?? $order->unit }}</td>
+                                <td>{{ $order->created_at->format('d M Y, H:i') }}</td>
+                                <td>
+                                    {{-- Logika badge status yang lebih baik --}}
+                                    @php
+                                        $statusClass = match($order->status) {
+                                            App\Enums\OrderStatus::Pending => 'bg-warning-lt',
+                                            App\Enums\OrderStatus::Verified => 'bg-info-lt',
+                                            App\Enums\OrderStatus::Success => 'bg-success-lt',
+                                            App\Enums\OrderStatus::Rejected => 'bg-danger-lt',
+                                            default => 'bg-secondary-lt',
+                                        };
+                                    @endphp
+                                    <span class="badge {{ $statusClass }}">{{ $order->status->value }}</span>
                                 </td>
                                 <td>
+                                    {{-- Aksi disederhanakan sesuai status --}}
                                     @if ($order->status == App\Enums\OrderStatus::Pending)
-                                        <form action="{{ route('admin.order.update', $order->id) }}" method="POST">
-                                            @csrf
-                                            @method('PUT')
-                                            <x-button-save title="Konfirmasi" icon="check" class="btn btn-primary btn-sm" />
-                                        </form>
-                                    @elseif($order->status == App\Enums\OrderStatus::Verified)
-                                        <x-button-modal :id="$order->id" title="Tambahkan Permintaan" icon="plus"
-                                            style="mr-1" class="btn btn-info btn-sm" />
-                                        <x-modal :id="$order->id" title="Tambahkan Barang">
+                                        <div class="d-flex">
+                                            {{-- Form untuk Konfirmasi --}}
                                             <form action="{{ route('admin.order.update', $order->id) }}" method="POST"
-                                                enctype="multipart/form-data">
+                                                onsubmit="return confirm('Konfirmasi permintaan ini? Stok akan dikurangi.');" class="me-2">
                                                 @csrf
                                                 @method('PUT')
-                                                <x-input name="name" type="text" title="Nama Barang"
-                                                    placeholder="Nama Barang" :value="$order->name" />
-                                                <div class="row">
-                                                    <div class="col-6">
-                                                        <x-select title="Kategori Barang" name="category_id">
-                                                            <option value="">Silahkan Pilih</option>
-                                                            @foreach ($categories as $category)
-                                                                <option value="{{ $category->id }}">
-                                                                    {{ $category->name }}
-                                                                </option>
-                                                            @endforeach
-                                                        </x-select>
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <x-select title="Supplier Barang" name="supplier_id">
-                                                            <option value="">Silahkan Pilih</option>
-                                                            @foreach ($suppliers as $supplier)
-                                                                <option value="{{ $supplier->id }}">
-                                                                    {{ $supplier->name }}
-                                                                </option>
-                                                            @endforeach
-                                                        </x-select>
-                                                    </div>
-                                                </div>
-                                                <div class="row">
-                                                    <div class="col-6">
-                                                        <x-input name="quantity" type="number" title="Kuantitas Barang"
-                                                            placeholder="" :value="$order->quantity" />
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <x-input name="unit" type="text" title="Satuan Barang"
-                                                            placeholder="Satuan Barang" :value="$order->unit" />
-                                                    </div>
-                                                </div>
-                                                <x-input name="image" type="file" title="Foto Barang" placeholder=""
-                                                    :value="$order->image" />
-                                                <x-textarea name="description" title="Deskripsi Barang"
-                                                    placeholder="Deskripsi Barang">
-                                                </x-textarea>
-                                                <x-button-save title="Simpan" icon="save" class="btn btn-primary" />
+                                                <input type="hidden" name="action" value="verify">
+                                                <button type="submit" class="btn btn-primary btn-sm">
+                                                    <i class="fas fa-check me-1"></i> Konfirmasi
+                                                </button>
                                             </form>
-                                        </x-modal>
+                                            
+                                            {{-- Form untuk Tolak --}}
+                                            <form action="{{ route('admin.order.update', $order->id) }}" method="POST"
+                                                onsubmit="return confirm('Anda yakin ingin menolak permintaan ini?');">
+                                                @csrf
+                                                @method('PUT')
+                                                <input type="hidden" name="action" value="reject">
+                                                <button type="submit" class="btn btn-danger btn-sm">
+                                                    <i class="fas fa-times me-1"></i> Tolak
+                                                </button>
+                                            </form>
+                                        </div>
+                                    @elseif ($order->status == App\Enums\OrderStatus::Verified)
+                                        <span class="text-muted fst-italic">
+                                            <i class="fas fa-check-circle text-info"></i> Stok sudah dialokasikan
+                                        </span>
+                                    @else
+                                        <span class="text-muted fst-italic">Tidak ada aksi</span>
                                     @endif
                                 </td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center">Belum ada permintaan barang.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </x-table>
             </x-card>

@@ -13,20 +13,20 @@
                             <th>Kuantitas</th>
                             <th>Satuan</th>
                             <th>Status</th>
-                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($orders as $i => $order)
+                        @forelse ($orders as $i => $order)
                             <tr>
                                 <td>{{ $i + $orders->firstItem() }}</td>
                                 <td>
+                                    {{-- Mengambil gambar dari relasi product jika ada --}}
                                     <span class="avatar rounded avatar-md"
-                                        style="background-image: url({{ $order->image }})"></span>
+                                        style="background-image: url({{ $order->product->image ?? $order->image }})"></span>
                                 </td>
-                                <td>{{ $order->name }}</td>
+                                <td>{{ $order->product->name ?? $order->name }}</td>
                                 <td>{{ $order->quantity }}</td>
-                                <td>{{ $order->unit }}</td>
+                                <td>{{ $order->product->unit ?? $order->unit }}</td>
                                 <td
                                     class="{{ $order->status == App\Enums\OrderStatus::Pending ? 'text-danger' : 'text-success' }}">
                                     {{ $order->status->value }}
@@ -36,25 +36,20 @@
                                         <x-button-modal :id="$order->id" title="" icon="edit" style=""
                                             class="btn btn-info btn-sm" />
                                         <x-modal :id="$order->id" title="Ubah Data">
-                                            <form action="{{ route('customer.order.update', $order->id) }}" method="POST"
-                                                enctype="multipart/form-data">
+                                            {{-- Form edit mungkin juga perlu disesuaikan nanti --}}
+                                            <form action="{{ route('customer.order.update', $order->id) }}" method="POST">
                                                 @csrf
                                                 @method('PUT')
-                                                <x-input name="image" type="file" title="Foto Barang" placeholder=""
-                                                    :value="$order->image" />
-                                                <x-input name="name" type="text" title="Nama Barang"
-                                                    placeholder="Nama Barang" :value="$order->name" />
                                                 <x-input name="quantity" type="number" title="Kuantitas"
                                                     placeholder="Kuantitas" :value="$order->quantity" />
-                                                <x-input name="unit" type="text" title="Satuan" placeholder="Satuan"
-                                                    :value="$order->unit" />
-                                                <x-button-save title="Simpan" icon="save" class="btn btn-primary" />
+                                                <x-button-save title="Simpan Perubahan" icon="save" class="btn btn-primary" />
                                             </form>
                                         </x-modal>
                                         <x-button-delete :id="$order->id" :url="route('customer.order.destroy', $order->id)" title=""
                                             class="btn btn-danger btn-sm" />
-                                    @elseif($order->status == App\Enums\OrderStatus::Success)
-                                        <form action="{{ route('cart.order', $product[0]->slug) }}" method="POST">
+                                    @elseif($order->status == App\Enums\OrderStatus::Success && $order->product)
+                                        {{-- Tombol ini hanya muncul jika permintaan diterima & terhubung ke produk --}}
+                                        <form action="{{ route('cart.order', $order->product->slug) }}" method="POST">
                                             @csrf
                                             <x-button-save title="Tambahkan Keranjang" icon="shopping-cart"
                                                 class="btn btn-primary btn-sm" />
@@ -62,21 +57,41 @@
                                     @endif
                                 </td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center">Belum ada permintaan barang.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </x-table>
             </x-card>
         </div>
         <div class="col-lg-4 col-12">
             <x-card title="TAMBAH PERMINTAAN BARANG" class="card-body">
-                <form action="{{ route('customer.order.store') }}" method="POST" enctype="multipart/form-data">
+                {{-- PASTIKAN ANDA MENGIRIMKAN VARIABEL $products DARI CONTROLLER --}}
+                <form action="{{ route('customer.order.store') }}" method="POST">
                     @csrf
-                    <x-input name="image" type="file" title="Foto Barang" placeholder="" :value="old('image')" />
-                    <x-input name="name" type="text" title="Nama Barang" placeholder="Nama Barang"
-                        :value="old('name')" />
-                    <x-input name="quantity" type="number" title="Kuantitas" placeholder="Kuantitas" :value="old('quantity')" />
-                    <x-input name="unit" type="text" title="Satuan" placeholder="Satuan" :value="old('unit')" />
-                    <x-button-save title="Simpan" icon="save" class="btn btn-primary" />
+                    
+                    {{-- Dropdown untuk memilih produk yang sudah ada --}}
+                    <div class="mb-3">
+                        <label for="product_id" class="form-label">Nama Barang</label>
+                        <select name="product_id" id="product_id" class="form-select @error('product_id') is-invalid @enderror" required>
+                            <option value="" disabled selected>Pilih Barang...</option>
+                            @foreach ($products as $product)
+                                <option value="{{ $product->id }}" {{ old('product_id') == $product->id ? 'selected' : '' }}>
+                                    {{ $product->name }} (Stok: {{ $product->quantity ?? 0 }})
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('product_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    {{-- Input hanya untuk kuantitas --}}
+                    <x-input name="quantity" type="number" title="Kuantitas" placeholder="Jumlah yang diminta" :value="old('quantity')" />
+                    
+                    <x-button-save title="Simpan Permintaan" icon="save" class="btn btn-primary" />
                 </form>
             </x-card>
         </div>

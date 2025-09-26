@@ -12,12 +12,9 @@ class Product extends Model
 
     /**
      * Atribut yang dapat diisi secara massal.
-     * PASTIKAN 'code' ADA DI DALAM ARRAY INI.
-     *
-     * @var array
      */
     protected $fillable = [
-        'code', // <-- INI YANG PALING PENTING
+        'code',
         'category_id',
         'supplier_id',
         'name',
@@ -29,57 +26,94 @@ class Product extends Model
     ];
 
     /**
-     * Accessor untuk atribut 'image'.
+     * The attributes that should be cast.
+     * Memastikan tipe data selalu konsisten.
+     */
+    protected $casts = [
+        'quantity' => 'integer',
+        'category_id' => 'integer',
+        'supplier_id' => 'integer',
+    ];
+
+    /**
+     * The "booted" method of the model.
+     * Method ini akan dieksekusi saat model diinisialisasi.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        /**
+         * Event 'creating' ini berjalan otomatis SETIAP KALI
+         * sebuah produk baru akan disimpan ke database.
+         */
+        static::creating(function ($product) {
+            // Jika 'code' tidak diisi manual, buat secara otomatis.
+            if (is_null($product->code)) {
+                $latestProduct = static::latest('id')->first();
+
+                if (!$latestProduct) {
+                    $nextNumber = 1;
+                } else {
+                    // Ekstrak nomor dari kode terakhir (misal: BRG-009 -> 9)
+                    $lastNumber = (int) substr($latestProduct->code, 4);
+                    $nextNumber = $lastNumber + 1;
+                }
+
+                // Format nomor dengan 3 digit (misal: 1 -> 001, 10 -> 010)
+                $product->code = 'BRG-' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+            }
+        });
+    }
+
+    /**
      * Mengubah path gambar menjadi URL yang lengkap.
      */
     public function getImageAttribute($value)
     {
-        // Pengecekan asset() untuk memastikan path digenerate dengan benar
         if ($value && file_exists(storage_path('app/public/' . $value))) {
             return asset('storage/' . $value);
         }
         
-        // Fallback jika tidak ada gambar atau file tidak ditemukan
+        // Fallback jika tidak ada gambar
         return 'https://fakeimg.pl/308x205/?text=Product&font=lexend';
     }
-
+    
     /**
-     * Relasi ke model Category.
+     * Memberitahu Laravel untuk menggunakan 'slug'
+     * pada Route Model Binding.
      */
+    public function getRouteKeyName()
+    {
+        return 'slug';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | RELASI DATABASE
+    |--------------------------------------------------------------------------
+    */
+
     public function category()
     {
         return $this->belongsTo(Category::class);
     }
 
-    /**
-     * Relasi ke model Supplier.
-     */
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
     }
 
-    /**
-     * Relasi ke model Cart.
-     */
     public function carts()
     {
         return $this->belongsToMany(Cart::class);
     }
 
-    /**
-     * Relasi ke detail barang masuk.
-     * Sebuah produk bisa memiliki banyak catatan barang masuk.
-     */
     public function incomingDetails()
     {
         return $this->hasMany(IncomingGoodDetail::class);
     }
 
-    /**
-     * Relasi ke detail barang keluar.
-     * Sebuah produk bisa memiliki banyak catatan barang keluar.
-     */
     public function outgoingDetails()
     {
         return $this->hasMany(OutgoingGoodDetail::class);
